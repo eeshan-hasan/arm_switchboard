@@ -1,6 +1,9 @@
 Metadata-Version: 2.4
 Name: arm
 Version: 0.0.1
+Summary: Starter package for attention-based exemplar simulations.
+Requires-Python: >=3.10
+Requires-Dist: matplotlib
 Requires-Dist: numpy
 Requires-Dist: pandas
 Requires-Dist: torch

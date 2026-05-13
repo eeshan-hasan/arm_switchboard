@@ -1,4 +1,5 @@
 pyproject.toml
+arm/__init__.py
 arm/models.py
 arm/params.py
 arm.egg-info/PKG-INFO
@@ -6,9 +7,12 @@ arm.egg-info/SOURCES.txt
 arm.egg-info/dependency_links.txt
 arm.egg-info/requires.txt
 arm.egg-info/top_level.txt
+arm/fitting/__init__.py
 arm/fitting/model_config.py
 arm/fitting/optimize.py
+arm/fitting/params.py
 arm/fitting/plots.py
 arm/fitting/results.py
 arm/fitting/runner.py
+arm/fitting/transforms.py
 arm/fitting/variants.py

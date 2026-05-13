@@ -1,34 +1,48 @@
-from __future__ import annotations
-
-from itertools import product
-from typing import Any, Callable, Iterable
-
-
-def expand_grid(parameter_grid: dict[str, Iterable[Any]]) -> list[dict[str, Any]]:
-    if not parameter_grid:
-        return [{}]
-
-    keys = list(parameter_grid)
-    values = [list(parameter_grid[key]) for key in keys]
-    return [dict(zip(keys, combo)) for combo in product(*values)]
+def make_objective(model_config,data):
+    def obj(x):
+        params = model_config.build_params_x(x)
+        ll= model_config.get_LL(params=params,experimenta_data=data)
+        return ll
+    return obj 
 
 
-def grid_search(
-    evaluate: Callable[[dict[str, Any]], dict[str, Any]],
-    parameter_grid: dict[str, Iterable[Any]],
-    *,
-    score_key: str = "score",
-    maximize: bool = True,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    results = [evaluate(candidate) for candidate in expand_grid(parameter_grid)]
-    if not results:
-        raise ValueError("grid_search requires at least one candidate")
+def find_best_box(model_config,initial_guess='random',seed=0):
+    np.random.seed(seed)
+    
+    obj= make_objective(model_config,data)
 
-    best = max(results, key=lambda item: item[score_key]) if maximize else min(
-        results,
-        key=lambda item: item[score_key],
+    bounds_list=model_config.get_bounds()  
+    x0 = model_config.get_x0(initial_guess='random')
+    try:
+        res=minimize(
+            obj, x0, method="L-BFGS-B", bounds=bounds_list,
+            options={"maxiter": 1000, "ftol": 1e-6, "disp": True}
+        )
+        best_params=build_params_from_x(res.x, estimated_params, model_params)
+    except ValueError:#Nothing to estimate
+        best_params = set_default_params_exp(model_params) 
+        res = 'Did not Converge'
+    return best_params, res
+
+
+def find_best_box_repeated(switches,data,n_runs=2):
+    best_params_candidates= []
+    res_candidates = []
+    results = Parallel(n_jobs=-1, backend='loky')(
+    delayed(find_best_box)(
+        switches,
+        data,
+        initial_guess='random',
+        seed=i
     )
-    return best, results
+    for i in range(n_runs)
+    )
 
-
-__all__ = ["expand_grid", "grid_search"]
+    for i in range(n_runs):
+        best_params, res = results[i]
+        best_params_candidates.append(best_params)
+        res_candidates.append(res)
+    ll_candidates = [res.fun for res in res_candidates]
+    best_params = best_params_candidates[np.argmin(ll_candidates)]
+    res = res_candidates[np.argmin(ll_candidates)]
+    return best_params,res
