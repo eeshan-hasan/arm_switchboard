@@ -1,21 +1,9 @@
 
-from dataclasses import dataclass
-from typing import Callable
-
+from .params import Param
 from .transforms import identity, log_10, logit, power_10, sigmoid
 
 
-@dataclass(slots=True)
-class Param:
-    name: str
-    dim: int
-    default: tuple[float, ...]
-    bounds: tuple[float, float]
-    transform: Callable[[float], float]
-    inv_transform: Callable[[float], float]
-    init_value : float
-
-Params = {
+Params_Strength = {
     "initial_alpha": Param(
         name="initial_alpha",
         dim=2,
@@ -43,7 +31,7 @@ Params = {
         inv_transform=log_10,
         init_value = 2
     ),
-    "decay": Param(
+    "gamma_w": Param(
         name="decay",
         dim=1,
         default=(0.05,),

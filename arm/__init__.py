@@ -1,1 +1,1 @@
-from . import fitting
+from . import fitting, models

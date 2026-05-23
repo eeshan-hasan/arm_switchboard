@@ -45,3 +45,12 @@ def read_data(animal="human", folder="../../Data/clean_data", test=False):
     data["accuracy"] = data["resp"] == data["truth"]
 
     return data
+
+
+def get_Xf(data):
+    X=(data[['stim.Orientation','stim.Frequency']].values)/100
+    f = (data['truth']-1).values
+    return X,f
+    
+def get_resp(data):
+    return (data['resp']-1).values
