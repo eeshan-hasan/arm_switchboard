@@ -5,8 +5,8 @@ from joblib import Parallel, delayed
 
 def make_objective(model_config, data, mask=None):
     def obj(x):
-        model_config.build_params_x(x)
-        neg_LL = model_config.get_negLL(data=data, mask=mask)
+        built_params=model_config.build_params_x(x)
+        neg_LL = model_config.get_negLL(built_params=built_params, data=data, mask=mask)
         return neg_LL
     return obj
 

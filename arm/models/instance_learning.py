@@ -21,7 +21,7 @@ class InstanceModel(Model):
         self.set_defaults(params)
         self.initialize_trajectories()
     
-    def fit(self):
+    def predict_proba(self):
         self.results = self.run_learning_trials()
         return self
     
@@ -39,20 +39,20 @@ class InstanceModel(Model):
 
         return -np.sum(np.log(probs + 1e-12))
 
-    def post_processing():
-        if np.isnan(decision_prob.sum()):
+    def post_processing(self):
+        if np.isnan(self.decision_probs.sum()):
             correct_prob = np.zeros(len(self.f))
             decisions_realized = np.random.binomial(1, 0.5, len(self.f))
-            accuracy = decisions_realized == self.f
+            accuracy = self.decisions_realized == self.f
         else:
-            correct_prob = decision_prob[np.arange(self.f.size), self.f]
-            if decision_prob.shape[1] == 2:
-                decisions_realized = np.random.binomial(1, decision_prob[:, 1])
+            correct_prob = self.decision_probs[np.arange(self.f.size), self.f]
+            if self.decision_probs.shape[1] == 2:
+                self.decisions_realized = np.random.binomial(1, self.decision_probs[:, 1])
             else:
-                decisions_realized = decision_prob.argmax(axis=1)
-            accuracy = decisions_realized == self.f
+                self.decisions_realized = self.decision_probs.argmax(axis=1)
+            accuracy = self.decisions_realized == self.f
 
-        accuracy_max = decision_prob.argmax(axis=1) == self.f
+        accuracy_max = self.decision_probs.argmax(axis=1) == self.f
         correct_prob = np.clip(correct_prob, 1e-12, 1.0)
         loss = -np.log(correct_prob)
 
@@ -85,10 +85,13 @@ class InstanceModel(Model):
         self.save_trajectories = params.get("save_trajectories", True)
 
         if self.attention_update_dims == "single":
-            self.initial_alpha = params.get("initial_alpha_s", np.mean(self.alpha))
-            self.alpha = np.zeros(shape=self.delta.shape) + self.initial_alpha
+            self.initial_alpha = params.get("initial_alpha_s", self.alpha)
+            self.alpha = np.zeros(shape=self.delta.shape) + np.mean(self.initial_alpha)
 
         self.exemplars_override = params.get("exemplars")
+
+        self.decision_rule = params.get("decision_rule", "luce")#or softmax
+        self.beta = params.get("beta", 1.0)#default is 1
 
         if self.initialization == "point":
             self.exemplars = (
@@ -203,6 +206,8 @@ class InstanceModel(Model):
                 self.dloss.append(dloss_trial)
                 self.dreg.append(dreg_trial)
         self.decision_probs = np.array(self.decisions)
+        self.alpha_trajectory = self.all_alpha[self.grid_size:,:]
+        self.correct_prob = self.decision_probs[np.arange(len(self.f)), self.f]
         return self.decision_probs
 
     
@@ -259,7 +264,13 @@ class InstanceModel(Model):
         return (activations * w).sum(axis=0) + 1e-100
 
     def calc_evidence_decision(self, E: np.ndarray) -> np.ndarray:
-        return (E / np.sum(E)) * (1 - self.guessing) + (self.guessing / len(E))
+        if self.decision_rule == "luce":
+            return (E / np.sum(E)) * (1 - self.guessing) + (self.guessing / len(E))
+        if self.decision_rule == "softmax":
+            exp_E = np.exp(self.beta*E - np.max(E))
+            return (exp_E / np.sum(exp_E)) * (1 - self.guessing) + (self.guessing / len(E))
+        else:
+            raise ValueError(f"Unknown decision_rule: {self.decision_rule}")
 
     def update_exemplars(self, x: np.ndarray) -> None:
         if len(self.exemplars) == 0:
@@ -267,15 +278,14 @@ class InstanceModel(Model):
         else:
             self.exemplars = np.vstack([self.exemplars, x])
 
-    @staticmethod
-    def update_weights_RW(
+    def update_weights_RW(self,
         w_i: np.ndarray,
         f_i: np.ndarray,
         act: np.ndarray,
         gamma_w: float = 1,
     ) -> np.ndarray:
         error = f_i - w_i
-        return w_i + gamma_w * error * act
+        return w_i + self.gamma_w * error * act
 
     @staticmethod
     def update_weights_noisy_feedback(
@@ -296,13 +306,12 @@ class InstanceModel(Model):
     ) -> np.ndarray:
         w = w * (1 - self.decay)
 
-        if self.w_update_type == "RW":
+        if self.w_update_type == "prediction_error":
             for i in range(w.shape[0]):
                 w[i] = self.update_weights_RW(
                     w[i],
                     feedback_mat_active[-1],
-                    activations[i],
-                    gamma_w,
+                    activations[i]
                 )
         elif self.w_update_type == "noisy_feedback":
             w[-1] = self.update_weights_noisy_feedback(
@@ -333,32 +342,46 @@ class InstanceModel(Model):
         delta = np.asarray(self.delta).reshape(1, -1)
         alpha_trajectory = [] if alpha_trajectory is None else alpha_trajectory
 
-        cat_ev = self.calc_evidence(activations, w)
-        tot_ev = np.sum(cat_ev)
-        den = tot_ev**2
-        decision_prob = self.calc_evidence_decision(cat_ev)
+        if(self.decision_rule == "luce"):
+            cat_ev = self.calc_evidence(activations, w)
+            tot_ev = np.sum(cat_ev)
+            den = tot_ev**2
+            
+            decision_prob = self.calc_evidence_decision(cat_ev)
 
-        if self.partial_encoding and len(alpha_trajectory):
-            if self.attention_parameterization == "none":
-                transformed_alpha_history = 10 ** np.asarray(alpha_trajectory)
-            elif self.attention_parameterization == "sigmoid":
-                transformed_alpha_history = self.sigmoid(np.asarray(alpha_trajectory))
-            else:
-                raise ValueError(
-                    f"Unknown attention_parameterization: {self.attention_parameterization}"
+            if self.partial_encoding and len(alpha_trajectory):
+                if self.attention_parameterization == "none":
+                    transformed_alpha_history = 10 ** np.asarray(alpha_trajectory)
+                elif self.attention_parameterization == "sigmoid":
+                    transformed_alpha_history = self.sigmoid(np.asarray(alpha_trajectory))
+                else:
+                    raise ValueError(
+                        f"Unknown attention_parameterization: {self.attention_parameterization}"
+                    )
+
+                dervact = -activations * (
+                    delta * np.abs(exemplars - probe) * transformed_alpha_history
                 )
+            else:
+                dervact = -activations * (delta * np.abs(exemplars - probe))
 
-            dervact = -activations * (
-                delta * np.abs(exemplars - probe) * transformed_alpha_history
-            )
-        else:
+            evi_deriv = dervact.T @ w
+            sum_evi_deriv = evi_deriv.sum(axis=1, keepdims=True)
+            dP = (tot_ev * evi_deriv - sum_evi_deriv * cat_ev[None, :]) / den
+        
+        if(self.decision_rule == "softmax"):
+            cat_ev = self.calc_evidence(activations, w)
+            exp_E = np.exp(self.beta*cat_ev)
+            decision_prob = exp_E / np.sum(exp_E)
             dervact = -activations * (delta * np.abs(exemplars - probe))
-
-        evi_deriv = dervact.T @ w
-        sum_evi_deriv = evi_deriv.sum(axis=1, keepdims=True)
-        dP = (tot_ev * evi_deriv - sum_evi_deriv * cat_ev[None, :]) / den
-
+            dE = dervact.T @ w
+            derv_exp_E = self.beta * dE * exp_E
+            den = (np.sum(exp_E))**2
+            dP = (np.sum(exp_E) * derv_exp_E - np.sum(derv_exp_E, axis=0) * exp_E) / den
+            
+        
         p_true = decision_prob[y_true]
+        dP = (1-self.guessing)*dP
 
         if self.loss_derivative == "ce":
             grad = -dP[:, y_true] / p_true
@@ -453,11 +476,14 @@ class InstanceModel(Model):
 
         else:
             raise ValueError(f"Unknown attention_update_type: {self.attention_update_type}")
-
         if self.attention_update_dims == "all":
             new_alpha = self.alpha - self.lr * (dloss + dreg)
         elif self.attention_update_dims == "single":
             new_alpha = self.alpha - self.lr * (dloss + dreg).sum()
+        elif self.attention_update_dims == "sum_to_constant":
+            new_alpha = np.zeros(self.alpha.shape)
+            new_alpha[0] = self.alpha[0] - self.lr * (dloss[0] + dreg[0]) + self.lr * (dloss[1] + dreg[1])
+            new_alpha[1] = self.alpha[1] - self.lr * (dloss[1] + dreg[1]) + self.lr * (dloss[0] + dreg[0])
         else:
             raise ValueError(f"Unknown attention_update_dims: {self.attention_update_dims}")
 

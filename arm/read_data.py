@@ -34,7 +34,7 @@ def read_data(animal="human", folder="../../Data/clean_data", test=False):
     folder = Path(folder)
 
     prefix = "test_" if test else ""
-    file_path = folder / f"{prefix}{animal}_data.csv"
+    file_path = folder / f"{prefix}{animal}_data_2.csv"
 
     if not file_path.exists():
         raise FileNotFoundError(f"Could not find data file: {file_path}")

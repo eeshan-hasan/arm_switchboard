@@ -4,7 +4,6 @@ from typing import Callable
 
 from .transforms import identity, log_10, logit, power_10, sigmoid
 
-
 @dataclass(slots=True)
 class Param:
     name: str
@@ -21,17 +20,17 @@ Params = {
         dim=2,
         default=(4, 4),
         bounds=(-3, 3),
-        transform=sigmoid,
-        inv_transform=logit,
+        transform=identity,
+        inv_transform=identity,
         init_value = 0
     ),
     "initial_alpha_s": Param(
         name="initial_alpha_s",
         dim=1,
-        default=(4),
+        default=(4,),
         bounds=(-3, 3),
-        transform=sigmoid,
-        inv_transform=logit,
+        transform=identity,
+        inv_transform=identity,
         init_value = 0
     ),
     "delta": Param(
@@ -59,16 +58,16 @@ Params = {
         bounds=(-4, 1),
         transform=power_10,
         inv_transform=log_10,
-        init_value = 0.1
+        init_value = -1
     ),
     "regularization_strength": Param(
         name="regularization_strength",
         dim=1,
         default=(0,),
-        bounds=(5, 0),
+        bounds=(-5, 1),
         transform=power_10,
         inv_transform=log_10,
-        init_value = 0.1
+        init_value = -1
     ),
     "gamma_w": Param(
         name="gamma_w",
@@ -96,6 +95,15 @@ Params = {
         transform=identity, #The model transforms it
         inv_transform=identity,
         init_value = 1
+    ),
+    "beta": Param(
+        name="beta",
+        dim=1,
+        default=(0,),
+        bounds=(-3, 3),
+        transform=power_10,
+        inv_transform=log_10,
+        init_value = 0
     ),
 }
 

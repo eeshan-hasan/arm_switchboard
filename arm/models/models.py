@@ -18,6 +18,24 @@ class Model:
         self.X = np.asarray(X)
         self.f = np.asarray(f, dtype=int)
         self.initialize_feedback()
+
+    @staticmethod
+    def create(
+        model_type: str,
+        X: np.ndarray,
+        f: np.ndarray,
+        params: dict[str, Any] | None = None,
+    ) -> "Model":
+        if model_type == "strength":
+            from .strength_learning import StrengthModel
+
+            return StrengthModel(X, f, params)
+        elif model_type == "instance":
+            from .instance_learning import InstanceModel
+
+            return InstanceModel(X, f, params)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
     
     def fit(self):
         self.results = self.run_learning_trials()

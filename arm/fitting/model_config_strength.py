@@ -1,32 +1,34 @@
 from .model_config import BaseModelConfig
 from instance_learning import models
 from .params_strength import Params_Strength
+from arm.models import StrengthModel
+import numpy as np
+
 
 class StrengthModelConfig(BaseModelConfig):
     def use_inits(self, model_init,param_defs=Params_Strength):
-        update_type = model_init.get("attention_update_type", "p_regularization_1")
+        attention_update_type = model_init.get("attention_update_type", "p_regularization_1")
+        if attention_update_type == 'p_regularization_1':
+            self.init_params['attention_update_type'] = 'p_regularization'
+            self.init_params['regularization_p'] = 1
+        elif attention_update_type == 'p_regularization_2':
+            self.init_params['attention_update_type'] = 'p_regularization'
+            self.init_params['regularization_p'] = 2
 
-        mapping = {
-            "none": ("none", None),
-            "loss": ("loss", None),
-            "p_regularization_2": ("p_regularization", 2),
-            "p_regularization_1": ("p_regularization", 1),
-            "p_regularization_0.75": ("p_regularization", 0.75),
-            "p_regularization_0.5": ("p_regularization", 0.5),
-        }
+        elif attention_update_type == 'p_regularization_0.5':
+            self.init_params['attention_update_type'] = 'p_regularization'
+            self.init_params['regularization_p'] = 0.5
+        
+        elif attention_update_type == 'p_regularization_0.75':
+            self.init_params['attention_update_type'] = 'p_regularization'
+            self.init_params['regularization_p'] = 0.75
+        else:#none,loss,sum_to_constant
+            self.init_params["attention_update_type"] = attention_update_type
 
-        attention_update_type, p = mapping.get(
-            update_type,
-            ("p_regularization", 1)
-        )
-
-        self.init_params["attention_update_type"] = attention_update_type
-
-        if p is not None:
-            self.init_params["regularization_p"] = p
 
         self.init_params["delta"] = model_init.get("delta", "fit_to_data")
         self.init_params["guessing"] = model_init.get("guessing", "default")
+        #self.init_params['response_bias'] = model_init.get('response_bias', 'default')
 
         self.init_params["loss_derivative"] = model_init.get("loss_derivative", "ce")
         self.init_params["attention_update_dims"] = model_init.get("attention_update_dims", "all")
@@ -39,26 +41,19 @@ class StrengthModelConfig(BaseModelConfig):
         self.init_params["w_update_type"] = model_init.get("w_update_type", "prediction_error")
         self.init_params["initialization_association"] = model_init.get("initialization_association","fit_to_data")
 
+        self.init_params['decision_rule'] = model_init.get('decision_rule', 'luce')
+
         return self
         
-    @staticmethod
-    def get_Xf(data):
-        X=(data[['stim.Orientation','stim.Frequency']].values)/100
-        f = (data['truth']-1).values
-        return X,f
     
-    @staticmethod
-    def get_resp(data):
-        return (data['resp']-1).values
-
-    def get_negLL(self, data, mask=None):
+    def get_negLL(self, built_params, data, mask=None):
         """Get negative LL for a single participant."""
-        from arm.models import StrengthModel
-
-        X, f = self.get_Xf(data)
         resp = self.get_resp(data)
-
-        return StrengthModel(X, f, self.built_params).fit().neg_LL(resp, mask=mask)
+        return self.run_model(data, built_params).neg_LL(resp, mask=mask)
+   
+    def run_model(self,data,built_params):
+        X, f = self.get_Xf(data)
+        return StrengthModel(X, f, built_params).predict_proba()
 
     def get_estimated_params(self):
         self.estimated_params = []
@@ -66,12 +61,19 @@ class StrengthModelConfig(BaseModelConfig):
         for name in ["delta", "decay", "guessing"]:
             if self.init_params.get(name) == "fit_to_data":
                 self.estimated_params.append(name)
-        if self.init_params.get("initial_alpha") == "fit_to_data":
-            if self.init_params["attention_update_dims"] == "all":
-                self.estimated_params.append("initial_alpha")
-            elif self.init_params["attention_update_dims"] == "single":
-                self.estimated_params.append("initial_alpha_s")
+        if(self.init_params.get('decision_rule') == 'softmax'):
+            self.estimated_params.append('beta')
 
+        if self.init_params.get("initial_alpha") == "fit_to_data":
+            if self.init_params["attention_update_type"] == "sum_to_constant":
+                self.estimated_params.append("initial_alpha_s")
+                self.init_params["initial_alpha"]='default'
+            if self.init_params["attention_update_type"] in ['loss','p_regularization']:
+                if self.init_params["attention_update_dims"] == "all":
+                    self.estimated_params.append("initial_alpha")
+                elif self.init_params["attention_update_dims"] == "single":
+                    self.estimated_params.append("initial_alpha_s")
+            
         attention_update_type = self.init_params["attention_update_type"]
 
         if attention_update_type == "loss":
@@ -90,7 +92,7 @@ class StrengthModelConfig(BaseModelConfig):
                 "regularization_strength",
             ]
 
-        if self.init_params.get("w_update_type") in {"prediction_error"}:
+        if self.init_params.get("w_update_type") in {"hebbian","prediction_error"}:
             self.estimated_params.append("gamma_w")
 
         if self.init_params.get("initialization_association") == "fit_to_data":

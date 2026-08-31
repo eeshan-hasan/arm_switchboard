@@ -1,1 +1,1 @@
-from . import fitting, models
+from . import fitting, models, read_data

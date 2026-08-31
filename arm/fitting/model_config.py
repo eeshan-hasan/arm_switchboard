@@ -1,12 +1,18 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from .optimize import optimizer
+import pickle
+import pandas as pd
+import os
+import json
+import numpy as np
+import pandas as pd
 
 import numpy as np
 from tqdm import tqdm
+import numpy as np
 
 from .params import Params
-
 
 class BaseModelConfig(ABC):
     def __init__(self, model_init=None, param_defs=Params):
@@ -28,6 +34,9 @@ class BaseModelConfig(ABC):
         """Model-specific init parsing."""
         pass
 
+    @staticmethod
+    def sigmoid(x):
+        return 1/(1+np.exp(-x))
 
     @abstractmethod
     def get_negLL(self,data):
@@ -82,9 +91,10 @@ class BaseModelConfig(ABC):
         return param_dict
 
     def build_params_x(self, x):
-        self.built_params = deepcopy(self.fixed_params)
+        built_params = deepcopy(self.fixed_params)
         params_from_x=self.params_from_x(x)
-        self.built_params.update(params_from_x)
+        built_params.update(params_from_x)
+        return built_params
 
     def get_bounds(self):
 
@@ -183,6 +193,7 @@ class BaseModelConfig(ABC):
         results = {}
         neg_LLs = {}
 
+
         for subject in tqdm(data.subject_ID.unique()):
             data_subject = data[data["subject_ID"] == subject]
 
@@ -192,13 +203,16 @@ class BaseModelConfig(ABC):
             results[subject] = res
             neg_LLs[subject] = res.fun
 
+
+
+
         self.best_params = best_params
         self.results = results
         self.neg_LLs = neg_LLs
         self.neg_LL = np.sum(list(neg_LLs.values()))
 
         print("Best Neg_LL =", self.neg_LL)
-        return self.best_params
+        return self
 
     def cross_validate(
         self,
@@ -280,3 +294,134 @@ class BaseModelConfig(ABC):
         print("CV Test Neg_LL per trial =", self.cv_test_negLL_per_trial)
 
         return cv_results
+    
+    def save(self, filename, foldername="./Switchboard/Test/"):
+        import os
+        if not os.path.exists(foldername):
+            os.makedirs(foldername)
+        with open(f"{foldername}{filename}.pkl", "wb") as f:
+            pickle.dump(self, f)
+
+    def write_json(self, filename, foldername="./Switchboard/Test/"):
+
+        if not os.path.exists(foldername):
+            os.makedirs(foldername)
+
+        data = {
+            "model_init": self.model_init,
+            "init_params": self.init_params,
+            "estimated_params": self.estimated_params,
+            "summary": self.summary,
+            "best_params": self.best_params,
+        }
+
+        def json_converter(obj):
+            def json_converter(obj):
+                if isinstance(obj, dict):
+                    return {
+                        convert_key(key): json_converter(value)
+                        for key, value in obj.items()
+                    }
+
+                if isinstance(obj, pd.Series):
+                    return json_converter(obj.to_dict())
+
+                if isinstance(obj, pd.DataFrame):
+                    return json_converter(obj.to_dict(orient="records"))
+
+                if isinstance(obj, np.ndarray):
+                    return json_converter(obj.tolist())
+
+                if isinstance(obj, np.generic):
+                    return obj.item()
+
+                if isinstance(obj, (list, tuple)):
+                    return [json_converter(value) for value in obj]
+
+                return obj
+
+
+            def convert_key(key):
+                if isinstance(key, np.generic):
+                    key = key.item()
+
+                if isinstance(key, (str, int, float, bool)) or key is None:
+                    return key
+
+                return str(key)
+
+        with open(f"{foldername}{filename}.json", "w") as f:
+            json.dump(data, f, indent=4, default=json_converter)
+                
+    @staticmethod
+    def get_Xf(data):
+        X=(data[['stim.Orientation','stim.Frequency']].values)/100
+        f = (data['truth']-1).values
+        return X,f
+    
+    @staticmethod
+    def get_resp(data):
+        return (data['resp']-1).values
+
+    def make_model_data(self, data):
+        model_data = []
+        for subject_ID in data['subject_ID'].unique():
+            subject_data = data[data['subject_ID']==subject_ID].copy()
+            best_params_x=self.results[subject_ID].x
+            built_params=self.build_params_x(best_params_x)
+            simulation=self.run_model(data=subject_data,built_params=built_params)
+
+            subject_data['model_prob_resp']=simulation.results[:,0]
+            subject_data['model_prob_correct']=simulation.correct_prob
+            subject_data['alpha_1']=simulation.alpha_trajectory[:,0]
+            subject_data['alpha_2']=simulation.alpha_trajectory[:,1]
+
+            resp = self.get_resp(subject_data)
+            subject_data['model_prob_human_resp'] = simulation.results[np.arange(len(resp)), resp]
+
+            subject_data['LL'] = self.results[subject_ID].fun
+
+            model_data.append(subject_data)
+        self.model_data = pd.concat(model_data)
+        return self.model_data
+
+    def calculate_information_metrics(self):
+        
+        penalty_BIC=self.model_data.groupby(['subject_ID'])['resp'].count().apply(np.log)*len(self.get_x_names())
+        penalty_AIC=2*len(self.get_x_names())
+        self.AICs = pd.Series(self.neg_LLs)*2+penalty_AIC   
+        self.BICs = pd.Series(self.neg_LLs)*2+penalty_BIC
+        self.AIC = np.sum(self.AICs)
+        self.BIC = np.sum(self.BICs)
+        #RB AIC BIC
+        model_data = self.model_data
+        rb_ids=model_data[model_data['task_structure'] == 'RB']['subject_ID'].unique()
+        ii_ids=model_data[model_data['task_structure'] == 'II']['subject_ID'].unique()
+
+        self.AICs_rb = self.AICs.loc[rb_ids]
+        self.AICs_ii = self.AICs.loc[ii_ids]
+
+        self.BICs_rb = self.BICs.loc[rb_ids]
+        self.BICs_ii = self.BICs.loc[ii_ids]
+
+        self.AIC_rb = np.sum(self.AICs_rb)
+        self.AIC_ii = np.sum(self.AICs_ii)
+
+        self.BIC_rb = np.sum(self.BICs_rb)
+        self.BIC_ii = np.sum(self.BICs_ii)
+
+        self.summary = {
+            'neg_LLs' : self.neg_LLs,
+            'neg_LL': self.neg_LL,
+            'AICs' : self.AICs,
+            'BIC' :   self.BICs,
+            'AIC': self.AIC,
+            'BIC': self.BIC,
+            'AIC_rb': self.AIC_rb,
+            'BIC_rb': self.BIC_rb,
+            'AIC_ii': self.AIC_ii,
+            'BIC_ii': self.BIC_ii,
+        }
+            
+
+

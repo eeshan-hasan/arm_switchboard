@@ -1,5 +1,7 @@
 from .model_config import BaseModelConfig
 from instance_learning import models
+from arm.models import InstanceModel
+
 
 class InstanceModelConfig(BaseModelConfig):
     def use_inits(self, model_init):
@@ -40,28 +42,20 @@ class InstanceModelConfig(BaseModelConfig):
         self.init_params["w_update_type"] = model_init.get("w_update_type", "perfect_instances")
         self.init_params["initialization_association"] = model_init.get("initialization_association","fit_to_data")
 
+        self.init_params['decision_rule'] = model_init.get('decision_rule', 'luce')
+
         return self
-    @staticmethod
-    def get_Xf(data):
-        X=(data[['stim.Orientation','stim.Frequency']].values)/100
-        f = (data['truth']-1).values
-        return X,f
-    
-    @staticmethod
-    def get_resp(data):
-        return (data['resp']-1).values
 
-    def get_negLL(self,data):
-        """Get LL for a single participant"""
-        from arm.models import InstanceModel
-        X,f = self.get_Xf(data)
+    def get_negLL(self, built_params, data, mask=None):
+        """Get negative LL for a single participant."""
         resp = self.get_resp(data)
-        return InstanceModel(X,f,self.built_params).fit().neg_LL(resp)
+        return self.run_model(data,built_params).neg_LL(resp, mask=mask)
 
-    def run_model(self,data):
-        X=data[['stim.Orientation','stim.Frequency']].values/100
-        f= data['truth']-1
-        return model(X,f,self.built_params)
+    def run_model(self,data,built_params):
+
+        X, f = self.get_Xf(data)
+
+        return InstanceModel(X=X,f=f,params=built_params).predict_proba()
 
 
     def get_estimated_params(self):
@@ -70,6 +64,10 @@ class InstanceModelConfig(BaseModelConfig):
         for name in ["delta", "decay", "guessing"]:
             if self.init_params.get(name) == "fit_to_data":
                 self.estimated_params.append(name)
+
+        if(self.init_params.get('decision_rule') == 'softmax'):
+            self.estimated_params.append('beta')
+
         if self.init_params.get("initial_alpha") == "fit_to_data":
             if self.init_params["attention_update_dims"] == "all":
                 self.estimated_params.append("initial_alpha")
