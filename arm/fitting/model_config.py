@@ -315,43 +315,45 @@ class BaseModelConfig(ABC):
             "best_params": self.best_params,
         }
 
+        def convert_key(key):
+            if isinstance(key, np.generic):
+                key = key.item()
+
+            if isinstance(key, (str, int, float, bool)) or key is None:
+                return key
+
+            return str(key)
+
+
         def json_converter(obj):
-            def json_converter(obj):
-                if isinstance(obj, dict):
-                    return {
-                        convert_key(key): json_converter(value)
-                        for key, value in obj.items()
-                    }
 
-                if isinstance(obj, pd.Series):
-                    return json_converter(obj.to_dict())
+            if isinstance(obj, dict):
+                return {
+                    convert_key(key): json_converter(value)
+                    for key, value in obj.items()
+                }
 
-                if isinstance(obj, pd.DataFrame):
-                    return json_converter(obj.to_dict(orient="records"))
+            if isinstance(obj, pd.Series):
+                return json_converter(obj.to_dict())
 
-                if isinstance(obj, np.ndarray):
-                    return json_converter(obj.tolist())
+            if isinstance(obj, pd.DataFrame):
+                return json_converter(obj.to_dict(orient="records"))
 
-                if isinstance(obj, np.generic):
-                    return obj.item()
+            if isinstance(obj, np.ndarray):
+                return json_converter(obj.tolist())
 
-                if isinstance(obj, (list, tuple)):
-                    return [json_converter(value) for value in obj]
+            if isinstance(obj, np.generic):
+                return obj.item()
 
-                return obj
+            if isinstance(obj, (list, tuple)):
+                return [json_converter(value) for value in obj]
 
+            return obj
 
-            def convert_key(key):
-                if isinstance(key, np.generic):
-                    key = key.item()
-
-                if isinstance(key, (str, int, float, bool)) or key is None:
-                    return key
-
-                return str(key)
 
         with open(f"{foldername}{filename}.json", "w") as f:
-            json.dump(data, f, indent=4, default=json_converter)
+            json.dump(json_converter(data), f, indent=4)
+
                 
     @staticmethod
     def get_Xf(data):

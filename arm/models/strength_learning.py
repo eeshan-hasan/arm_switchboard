@@ -5,7 +5,7 @@ from .models import Model
 import numpy as np
 
 verbose = False
-quick = True
+quick = False
 
 class StrengthModel(Model):
     def __init__(self, X: np.ndarray, f: np.ndarray, params: dict[str, Any] | None):
