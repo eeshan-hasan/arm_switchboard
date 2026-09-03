@@ -94,10 +94,10 @@ class Switchboard:
 
         plots.make_full_plot(ModelConfig)
         plt.savefig(foldername+str(index)+'/full_plot.png',dpi=300)
+
+        plots.make_full_plot_ci(ModelConfig)
+        plt.savefig(foldername+str(index)+'/full_plot_ci.png',dpi=300)
         
-
-
-
         
         #fit
         #save

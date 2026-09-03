@@ -25,9 +25,9 @@ class StrengthModelConfig(BaseModelConfig):
         else:#none,loss,sum_to_constant
             self.init_params["attention_update_type"] = attention_update_type
 
-
         self.init_params["delta"] = model_init.get("delta", "fit_to_data")
         self.init_params["guessing"] = model_init.get("guessing", "default")
+        self.init_params["decay"] = model_init.get("decay", "default")
         #self.init_params['response_bias'] = model_init.get('response_bias', 'default')
 
         self.init_params["loss_derivative"] = model_init.get("loss_derivative", "ce")
@@ -83,6 +83,10 @@ class StrengthModelConfig(BaseModelConfig):
             self.estimated_params += [
                 "lr",
                 "regularization_strength",
+            ]
+        elif attention_update_type == "sum_to_constant":
+            self.estimated_params += [
+                "lr"
             ]
 
         elif attention_update_type == "competition_regularization":
