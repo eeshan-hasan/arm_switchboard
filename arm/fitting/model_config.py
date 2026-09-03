@@ -310,6 +310,7 @@ class BaseModelConfig(ABC):
         data = {
             "model_init": self.model_init,
             "init_params": self.init_params,
+            "fixed_params":self.fixed_params,
             "estimated_params": self.estimated_params,
             "summary": self.summary,
             "best_params": self.best_params,

@@ -30,14 +30,14 @@ Params_Strength = {
         inv_transform=log_10,
         init_value = 2
     ),
-    "gamma_w": Param(
+    "decay": Param(
         name="decay",
         dim=1,
-        default=(0.05,),
+        default=(0.00,),
         bounds=(0.0, 0.95),
         transform=identity,
         inv_transform=identity,
-        init_value = 0.05
+        init_value = 0.0
     ),
     "lr": Param(
         name="lr",
@@ -60,11 +60,11 @@ Params_Strength = {
     "gamma_w": Param(
         name="gamma_w",
         dim=1,
-        default=(1,),
+        default=(1.00,),
         bounds=(0.0, 0.95),
         transform=identity,
         inv_transform=identity,
-        init_value = 0
+        init_value = 0.05
     ),
     "guessing": Param(
         name="guessing",
@@ -105,4 +105,4 @@ Params_Strength = {
 }
 
 
-__all__ = ["Param", "Params"]
+__all__ = ["Param", "Params_Strength"]

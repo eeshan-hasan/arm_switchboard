@@ -6,6 +6,12 @@ import numpy as np
 
 
 class StrengthModelConfig(BaseModelConfig):
+    def __init__(self, model_init=None):
+        super().__init__(
+            model_init=model_init,
+            param_defs=Params_Strength,
+        )
+
     def use_inits(self, model_init,param_defs=Params_Strength):
         attention_update_type = model_init.get("attention_update_type", "p_regularization_1")
         if attention_update_type == 'p_regularization_1':
