@@ -73,7 +73,7 @@ def find_best_box(
             # IMPORTANT:
             # Parallelization happens across n_runs using joblib,
             # so don't also parallelize inside DE.
-            workers=-1,
+            workers=5,
         )
 
         # -----------------------------------------------------
