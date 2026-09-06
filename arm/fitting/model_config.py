@@ -95,6 +95,22 @@ class BaseModelConfig(ABC):
         params_from_x=self.params_from_x(x)
         built_params.update(params_from_x)
         return built_params
+    
+    def get_x_from_params(self,params):
+        x=[]
+        for param in self.estimated_params:
+            p = self.param_defs[param]
+            dim=p.dim
+            if(dim==1):
+                x.append(p.inv_transform(params[param]))
+            if(dim>1):
+                x=list(x)+list(p.inv_transform(params[param]))
+                
+            print(param)
+            print(dim)
+
+        print(x)
+        return x
 
     def get_bounds(self):
 
@@ -127,49 +143,6 @@ class BaseModelConfig(ABC):
     def get_subject_IDs(self,data):
         return data.subject_ID.unique()
     
-    def make_cv_masks(
-        self,
-        data_subject,
-        scheme="blocked",
-        test_frac=0.2,
-        block_size=5,
-        seed=None,
-        trial_col=None,
-    ):
-        """
-        Returns train_mask, test_mask aligned to data_subject rows.
-        """
-
-        if trial_col is not None:
-            data_subject = data_subject.sort_values(trial_col)
-
-        n = len(data_subject)
-        idx = np.arange(n)
-
-        if scheme == "even_odd":
-            train_mask = idx % 2 == 0
-            test_mask = ~train_mask
-
-        elif scheme == "odd_even":
-            test_mask = idx % 2 == 0
-            train_mask = ~test_mask
-
-        elif scheme == "random":
-            rng = np.random.default_rng(seed)
-            n_test = int(np.round(test_frac * n))
-            test_idx = rng.choice(idx, size=n_test, replace=False)
-            test_mask = np.isin(idx, test_idx)
-            train_mask = ~test_mask
-
-        elif scheme == "blocked":
-            block_id = idx // block_size
-            test_mask = block_id % 2 == 1
-            train_mask = ~test_mask
-
-        else:
-            raise ValueError(f"Unknown CV scheme: {scheme}")
-
-        return train_mask, test_mask
 
     def fit(self, data, single_subject=False, n_runs=10):
         """
@@ -180,11 +153,12 @@ class BaseModelConfig(ABC):
         """
 
         if single_subject:
-            best_p, res = optimizer(self, data, n_runs)
+            best_p, res, res_all = optimizer(self, data, n_runs)
 
             self.best_params = best_p
             self.result = res
             self.neg_LL = res.fun
+            self.detailed_fit = res_all
 
             print("Best Neg_LL =", self.neg_LL)
             return self.best_params
@@ -192,108 +166,31 @@ class BaseModelConfig(ABC):
         best_params = {}
         results = {}
         neg_LLs = {}
+        detailed_fits = {}
+        optimizer_table = {}
 
 
         for subject in tqdm(data.subject_ID.unique()):
             data_subject = data[data["subject_ID"] == subject]
 
-            best_p, res = optimizer(self, data_subject, n_runs)
+            best_p, res, res_all = optimizer(self, data_subject, n_runs)
 
             best_params[subject] = best_p
             results[subject] = res
             neg_LLs[subject] = res.fun
-
-
-
+            detailed_fits[subject] = res_all
+            optimizer_table[subject] = [res_i.fun for res_i in res_all]
 
         self.best_params = best_params
         self.results = results
         self.neg_LLs = neg_LLs
         self.neg_LL = np.sum(list(neg_LLs.values()))
+        self.detailed_fits = res_all
+        self.optimizer_table = optimizer_table
 
         print("Best Neg_LL =", self.neg_LL)
         return self
 
-    def cross_validate(
-        self,
-        data,
-        scheme="blocked",
-        test_frac=0.2,
-        block_size=5,
-        n_runs=10,
-        seed=None,
-        trial_col=None,
-    ):
-        """
-        Fit each subject on training trials and evaluate on held-out trials.
-
-        Requires get_negLL(data, mask=None) to support masking.
-        """
-
-        cv_results = {}
-        total_train_negLL = 0.0
-        total_test_negLL = 0.0
-        total_n_train = 0
-        total_n_test = 0
-
-        for subject in tqdm(data.subject_ID.unique()):
-            data_subject = data[data["subject_ID"] == subject].copy()
-
-            if trial_col is not None:
-                data_subject = data_subject.sort_values(trial_col)
-
-            train_mask, test_mask = self.make_cv_masks(
-                data_subject,
-                scheme=scheme,
-                test_frac=test_frac,
-                block_size=block_size,
-                seed=seed,
-                trial_col=None,
-            )
-
-            best_p, res = optimizer(
-                self,
-                data_subject,
-                n_runs=n_runs,
-                mask=train_mask,
-            )
-
-            self.built_params = deepcopy(self.fixed_params)
-            self.built_params.update(best_p)
-
-            train_negLL = self.get_negLL(data_subject, mask=train_mask)
-            test_negLL = self.get_negLL(data_subject, mask=test_mask)
-
-            cv_results[subject] = {
-                "params": best_p,
-                "result": res,
-                "train_negLL": train_negLL,
-                "test_negLL": test_negLL,
-                "n_train": int(np.sum(train_mask)),
-                "n_test": int(np.sum(test_mask)),
-                "train_negLL_per_trial": train_negLL / np.sum(train_mask),
-                "test_negLL_per_trial": test_negLL / np.sum(test_mask),
-                "train_mask": train_mask,
-                "test_mask": test_mask,
-            }
-
-            total_train_negLL += train_negLL
-            total_test_negLL += test_negLL
-            total_n_train += np.sum(train_mask)
-            total_n_test += np.sum(test_mask)
-
-        self.cv_results = cv_results
-        self.cv_train_negLL = total_train_negLL
-        self.cv_test_negLL = total_test_negLL
-        self.cv_train_negLL_per_trial = total_train_negLL / total_n_train
-        self.cv_test_negLL_per_trial = total_test_negLL / total_n_test
-
-        print("CV Train Neg_LL =", self.cv_train_negLL)
-        print("CV Test Neg_LL =", self.cv_test_negLL)
-        print("CV Train Neg_LL per trial =", self.cv_train_negLL_per_trial)
-        print("CV Test Neg_LL per trial =", self.cv_test_negLL_per_trial)
-
-        return cv_results
     
     def save(self, filename, foldername="./Switchboard/Test/"):
         import os
@@ -314,6 +211,7 @@ class BaseModelConfig(ABC):
             "estimated_params": self.estimated_params,
             "summary": self.summary,
             "best_params": self.best_params,
+            "optimizer_table" : self.optimizer_table
         }
 
         def convert_key(key):
@@ -366,11 +264,14 @@ class BaseModelConfig(ABC):
     def get_resp(data):
         return (data['resp']-1).values
 
-    def make_model_data(self, data):
+    def make_model_data(self, data,params=None):
         model_data = []
         for subject_ID in data['subject_ID'].unique():
             subject_data = data[data['subject_ID']==subject_ID].copy()
-            best_params_x=self.results[subject_ID].x
+            if(params == None):
+                best_params_x=self.results[subject_ID].x
+            else:
+                best_params_x=self.get_x_from_params(params)
             built_params=self.build_params_x(best_params_x)
             simulation=self.run_model(data=subject_data,built_params=built_params)
 
@@ -382,7 +283,7 @@ class BaseModelConfig(ABC):
             resp = self.get_resp(subject_data)
             subject_data['model_prob_human_resp'] = simulation.results[np.arange(len(resp)), resp]
 
-            subject_data['LL'] = self.results[subject_ID].fun
+            subject_data['LL'] = subject_data['model_prob_resp'].sum()
 
             model_data.append(subject_data)
         self.model_data = pd.concat(model_data)
@@ -417,7 +318,7 @@ class BaseModelConfig(ABC):
             'neg_LLs' : self.neg_LLs,
             'neg_LL': self.neg_LL,
             'AICs' : self.AICs,
-            'BIC' :   self.BICs,
+            'BICs' :   self.BICs,
             'AIC': self.AIC,
             'BIC': self.BIC,
             'AIC_rb': self.AIC_rb,

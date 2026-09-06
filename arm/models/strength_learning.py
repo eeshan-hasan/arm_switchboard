@@ -39,7 +39,7 @@ class StrengthModel(Model):
         if(quick):
             self.n_points = params.get("n_points", 10)
         else:
-            self.n_points = params.get("n_points", 100)
+            self.n_points = params.get("n_points", 30)
 
         self.lr = params.get("lr", 0.1)
         self.attention_update_type = params.get("attention_update_type", "none")

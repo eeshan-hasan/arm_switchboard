@@ -1,12 +1,19 @@
 from .switchboard import Switch
+
 Switches_Strength_1 = [
+    Switch(name='attention_update_type', n_variants=7, variant=('none','loss','p_regularization_2','p_regularization_1','sum_to_constant'), human_readable=('None','Loss-based','P-Regularization p=2','P-Regularization p=1',"Sum to Constant"), default=0),
+    Switch(name='w_update_type', n_variants=2, variant=('hebbian','prediction_error'), human_readable=('Hebbian','Prediction Error'), default=0),
+    Switch(name='decay', n_variants=2, variant=('fit_to_data','default'), human_readable=('Fit to Data','Default'), default=0)
+]
+
+Switches_Strength_2 = [
     Switch(name='attention_update_type', n_variants=7, variant=('none','loss','p_regularization_2','p_regularization_1','p_regularization_0.75','p_regularization_0.5','sum_to_constant'), human_readable=('None','Loss-based','P-Regularization p=2','P-Regularization p=1','P-Regularization p=0.75','P-Regularization p=0.5',"Sum to Constant"), default=0),
     Switch(name='w_update_type', n_variants=2, variant=('hebbian','prediction_error'), human_readable=('Hebbian','Prediction Error'), default=0),
     Switch(name='decay', n_variants=2, variant=('fit_to_data','default'), human_readable=('Fit to Data','Default'), default=0)
 ]
 
 
-Switches_Strength_2 = [
+Switches_Strength_3 = [
     Switch(name='attention_update_type', n_variants=6, variant=('none','loss','p_regularization_2','p_regularization_1','p_regularization_0.75','p_regularization_0.5','sum_to_constant'), human_readable=('None','Loss-based','P-Regularization p=2','P-Regularization p=1','P-Regularization p=0.75','P-Regularization p=0.5',"Sum to Constant"), default=0),
     Switch(name='attention_parameterization', n_variants=2, variant=('sigmoid','none'), human_readable=('Sigmoid','None'), default=0),
     Switch(name='initial_alpha', n_variants=2, variant=('fit_to_data','default'), human_readable=('Fit to Data','Default'), default=0),
