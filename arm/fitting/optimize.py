@@ -21,6 +21,15 @@ def make_objective(model_config, data, mask=None):
 
     return obj
 
+def objective(x, model_config, data, mask=None):
+    built_params = model_config.build_params_x(x)
+    neg_LL = model_config.get_negLL(
+        built_params=built_params,
+        data=data,
+        mask=mask,
+    )
+    return neg_LL if np.isfinite(neg_LL) else 1e100
+
 
 def find_best_box(
     model_config,
@@ -44,8 +53,9 @@ def find_best_box(
         # 1. GLOBAL SEARCH: Differential Evolution
         # -----------------------------------------------------
         de_res = differential_evolution(
-            obj,
+            objective,
             bounds=bounds_list,
+            args=(model_config, data, mask),
             seed=seed,
 
             # Population size is roughly:
@@ -63,7 +73,7 @@ def find_best_box(
             # IMPORTANT:
             # Parallelization happens across n_runs using joblib,
             # so don't also parallelize inside DE.
-            workers=1,
+            workers=-1,
         )
 
         # -----------------------------------------------------
@@ -75,7 +85,7 @@ def find_best_box(
             method="L-BFGS-B",
             bounds=bounds_list,
             options={
-                "maxiter": 5000,
+                "maxiter": 500,
                 "ftol": 1e-12,
                 "gtol": 1e-6,
                 "maxls": 50,
