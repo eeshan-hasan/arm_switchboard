@@ -60,7 +60,7 @@ def find_best_box(
 
             # Population size is roughly:
             # popsize * number_of_parameters
-            popsize=30,
+            popsize=10,
 
             maxiter=300,
 
