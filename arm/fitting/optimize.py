@@ -60,7 +60,7 @@ def find_best_box(
 
             # Population size is roughly:
             # popsize * number_of_parameters
-            popsize=10,
+            popsize=30,
 
             maxiter=300,
 
@@ -73,7 +73,7 @@ def find_best_box(
             # IMPORTANT:
             # Parallelization happens across n_runs using joblib,
             # so don't also parallelize inside DE.
-            workers=15,
+            workers=25,
         )
 
         # -----------------------------------------------------

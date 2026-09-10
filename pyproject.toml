@@ -7,7 +7,7 @@ name = "arm"
 version = "0.0.1"
 description = "Starter package for attention-based exemplar simulations."
 requires-python = ">=3.10"
-dependencies = ["matplotlib", "numpy", "pandas", "torch"]  # add what you use
+dependencies = ["matplotlib", "numpy", "pandas", "torch", "scipy>=1.10"]
 
 [tool.setuptools.packages.find]
 where = ["."]

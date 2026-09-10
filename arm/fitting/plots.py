@@ -25,36 +25,35 @@ def make_full_plot(M):
         phase_change=subj_data_2.index[0]
 
         ax=plt.subplot(n_sub,4,i)
-        subj_data_1['acc'].rolling(window=45,center=True,win_type='triang').mean().plot(ax=ax,c=colors[0],label='Data')
-        subj_data_1['model_prob_correct'].rolling(window=45,center=True,win_type='triang').mean().plot(ax=ax,c=colors[1],ls='--',lw=2,label='Model')
-        subj_data_2['acc'].rolling(window=45,center=True,win_type='triang').mean().plot(ax=ax,c=colors[0],label='_nolegend_')
-        subj_data_2['model_prob_correct'].rolling(window=45,center=True,win_type='triang').mean().plot(ax=ax,c=colors[1],ls='--',lw=2,label='_nolegend_')
+        subj_data_1['acc'].rolling(window=45,center=True,win_type='triang',min_periods=1).mean().plot(ax=ax,c=colors[0],label='Data')
+        subj_data_1['model_prob_correct'].rolling(window=45,center=True,win_type='triang',min_periods=1).mean().plot(ax=ax,c=colors[1],ls='--',lw=2,label='Model')
+        subj_data_2['acc'].rolling(window=45,center=True,win_type='triang',min_periods=1).mean().plot(ax=ax,c=colors[0],label='_nolegend_')
+        subj_data_2['model_prob_correct'].rolling(window=45,center=True,win_type='triang',min_periods=1).mean().plot(ax=ax,c=colors[1],ls='--',lw=2,label='_nolegend_')
         plt.axvline(phase_change,ls=':',c='black',label='Phase Change')
         plt.title(f'Subject ID: {subject_ID} Task: {task}')
         plt.legend(frameon=False)
         ax.spines[['top', 'right']].set_visible(False)
         ax.set(title=f'Subject {subject_ID}  {task}', xlabel='Trial', ylabel='Accuracy', ylim=(0, 1))
-        plt.ylim([0,1])
+        plt.ylim([0,1.1])
 
-        
         ax=plt.subplot(n_sub,4,i+1)
-        plt.plot(subj_data_1[subj_data_1['trial_type']=='Transfer'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang').mean(),ls='--',lw=2,c=colors[2])
-        plt.plot(subj_data_1[subj_data_1['trial_type']=='Interference'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang').mean(),ls='--',lw=2,c=colors[3])
+        plt.plot(subj_data_1[subj_data_1['trial_type']=='Transfer'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean(),ls='--',lw=2,c=colors[2])
+        plt.plot(subj_data_1[subj_data_1['trial_type']=='Interference'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean(),ls='--',lw=2,c=colors[3])
 
-        plt.plot(subj_data_1[subj_data_1['trial_type']=='Transfer'][['acc']].rolling(window=15,center=True,win_type='triang').mean('acc'),ls='-',lw=2,c=colors[2])
-        plt.plot(subj_data_1[subj_data_1['trial_type']=='Interference'][['acc']].rolling(window=15,center=True,win_type='triang').mean('acc'),ls='-',lw=2,c=colors[3])
+        plt.plot(subj_data_1[subj_data_1['trial_type']=='Transfer'][['acc']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean('acc'),ls='-',lw=2,c=colors[2])
+        plt.plot(subj_data_1[subj_data_1['trial_type']=='Interference'][['acc']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean('acc'),ls='-',lw=2,c=colors[3])
         
-        plt.plot(subj_data_2[subj_data_2['trial_type']=='Transfer'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang').mean(),ls='--',lw=2,c=colors[2])
-        plt.plot(subj_data_2[subj_data_2['trial_type']=='Interference'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang').mean(),ls='--',lw=2,c=colors[3])
+        plt.plot(subj_data_2[subj_data_2['trial_type']=='Transfer'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean(),ls='--',lw=2,c=colors[2])
+        plt.plot(subj_data_2[subj_data_2['trial_type']=='Interference'][['model_prob_correct']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean(),ls='--',lw=2,c=colors[3])
 
-        plt.plot(subj_data_2[subj_data_2['trial_type']=='Transfer'][['acc']].rolling(window=15,center=True,win_type='triang').mean('acc'),ls='-',lw=2,c=colors[2])
-        plt.plot(subj_data_2[subj_data_2['trial_type']=='Interference'][['acc']].rolling(window=15,center=True,win_type='triang').mean('acc'),ls='-',lw=2,c=colors[3])
+        plt.plot(subj_data_2[subj_data_2['trial_type']=='Transfer'][['acc']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean('acc'),ls='-',lw=2,c=colors[2])
+        plt.plot(subj_data_2[subj_data_2['trial_type']=='Interference'][['acc']].rolling(window=15,center=True,win_type='triang',min_periods=1).mean('acc'),ls='-',lw=2,c=colors[3])
 
         plt.axvline(phase_change,ls=':',c='black')
 
         ax.spines[['top', 'right']].set_visible(False)
         ax.set(title=f'Subject {subject_ID}  {task}', xlabel='Trial', ylabel='Accuracy', ylim=(0, 1))
-        plt.ylim([0,1])
+        plt.ylim([0,1.1])
         legend = [
             Line2D([0],[0], c=colors[2], lw=2, label='Transfer'),
             Line2D([0],[0], c=colors[3], lw=2, label='Interference'),
@@ -69,7 +68,7 @@ def make_full_plot(M):
         plt.axvline(phase_change,ls=':',c='black')
         ax.spines[['top', 'right']].set_visible(False)
         ax.set(title=f'Subject {subject_ID}  {task}', xlabel='Trial', ylabel=r'Attention $\sigma(\alpha)$', ylim=(0, 1))
-        plt.ylim([0,1])
+        plt.ylim([0,1.1])
         legend = [
             Line2D([0],[0], c=colors[3], lw=2, label='Alpha Dim. 1'),
             Line2D([0],[0], c=colors[4], lw=2, label='Alpha Dim. 2')
@@ -114,38 +113,36 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def plot_bootstrap_ci(ax, data, column='acc', window=45, color='black',
-                      label=None, ls='-', lw=2, alpha=.15, n_boot=1000, seed=42):
-
+def plot_bootstrap_ci(ax, data, column='acc', window=45, color='black', label=None, ls='-', lw=2, alpha=.15, n_boot=1000, seed=42):
     y = data[column].astype(float)
-    mean = y.rolling(window=window, center=True, win_type='triang').mean()
-
-    weights = triang(window)
-    weights = weights / weights.sum()
+    mean = y.rolling(window=window, center=True, win_type='triang', min_periods=1).mean()
     rng = np.random.default_rng(seed)
 
     lower = np.full(len(y), np.nan)
     upper = np.full(len(y), np.nan)
-
     half = window // 2
 
-    for j in range(half, len(y) - half):
-        vals = y.iloc[j-half:j+half+1].to_numpy()
+    for j in range(len(y)):
+        start, stop = max(0, j-half), min(len(y), j+half+1)
+        vals = y.iloc[start:stop].to_numpy()
+        weights = triang(len(vals))
 
-        if len(vals) != window or np.isnan(vals).any():
+        valid = ~np.isnan(vals)
+        vals, weights = vals[valid], weights[valid]
+
+        if len(vals) == 0:
             continue
 
-        samples = rng.choice(vals, size=(n_boot, window), replace=True, p=weights)
+        weights = weights / weights.sum()
+        samples = rng.choice(vals, size=(n_boot, len(vals)), replace=True, p=weights)
         boot_means = samples.mean(axis=1)
-
         lower[j], upper[j] = np.percentile(boot_means, [2.5, 97.5])
 
     ax.plot(data.index, mean, c=color, ls=ls, lw=lw, label=label)
     ax.fill_between(data.index, lower, upper, color=color, alpha=alpha, linewidth=0)
-
-
+    
 def plot_model(ax, data, window, color, label=None):
-    mean = data['model_prob_correct'].rolling(window=window, center=True, win_type='triang').mean()
+    mean = data['model_prob_correct'].rolling(window=window, center=True, win_type='triang',min_periods=1).mean()
     ax.plot(data.index, mean, c=color, ls='--', lw=2, label=label)
 
 
@@ -194,11 +191,11 @@ def make_full_plot_ci(M):
             transfer = phase_data[phase_data['trial_type'] == 'Transfer']
             interference = phase_data[phase_data['trial_type'] == 'Interference']
 
-            plot_bootstrap_ci(ax, transfer, 'acc', 15, colors[2])
-            plot_bootstrap_ci(ax, interference, 'acc', 15, colors[3])
+            plot_bootstrap_ci(ax, transfer, 'acc', 30, colors[2])
+            plot_bootstrap_ci(ax, interference, 'acc', 30, colors[3])
 
-            plot_model(ax, transfer, 15, colors[2])
-            plot_model(ax, interference, 15, colors[3])
+            plot_model(ax, transfer, 30, colors[2])
+            plot_model(ax, interference, 30, colors[3])
 
         ax.axvline(phase_change, ls=':', c='black')
         ax.spines[['top', 'right']].set_visible(False)
