@@ -2,8 +2,7 @@ from .switchboard import Switch
 
 Switches_Strength_1 = [
     Switch(name='attention_update_type', n_variants=5, variant=('none','loss','p_regularization_2','p_regularization_1','sum_to_constant'), human_readable=('None','Loss-based','P-Regularization p=2','P-Regularization p=1',"Sum to Constant"), default=0),
-    Switch(name='w_update_type', n_variants=2, variant=('hebbian','prediction_error'), human_readable=('Hebbian','Prediction Error'), default=0),
-    Switch(name='decay', n_variants=1, variant=('default'), human_readable=('Default'), default=0)
+    Switch(name='w_update_type', n_variants=2, variant=('hebbian','prediction_error'), human_readable=('Hebbian','Prediction Error'), default=0)
 ]
 
 Switches_Strength_2 = [
