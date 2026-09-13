@@ -146,11 +146,8 @@ class StrengthModel(Model):
     @staticmethod
     def sigmoid(x: np.ndarray | float) -> np.ndarray:
         x = np.asarray(x, dtype=float)
-        return np.where(
-            x >= 0,
-            1 / (1 + np.exp(-x)),
-            np.exp(x) / (1 + np.exp(x)),
-        )
+        z = np.exp(-np.abs(x))
+        return np.where(x >= 0, 1 / (1 + z), z / (1 + z))
 
     @staticmethod
     def distances(x: np.ndarray, delta: np.ndarray, hidden_units: np.ndarray) -> np.ndarray:
@@ -265,7 +262,7 @@ class StrengthModel(Model):
 
             # Stable derivative of softmax
             dP = self.beta * decision_prob * (
-                dE - np.sum(decision_prob * dE)
+                dE - np.sum(decision_prob[None,:] * dE, axis=1, keepdims= True)
             )
 
         p_true = decision_prob[y_true]
