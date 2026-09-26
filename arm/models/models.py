@@ -93,6 +93,8 @@ class Model:
         self.n_categories = len(np.unique(self.f))
         self.feedback_mat = np.zeros((len(self.X), self.n_categories))
         self.feedback_mat[np.arange(len(self.X)), self.f] = 1
+        self.n_trials = len(self.X)
+        
     @abstractmethod
     def run_learning_trials(self) -> dict[str, Any]:
         pass

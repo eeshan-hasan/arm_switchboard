@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from .optimize import optimizer
+from .optimize_group import optimizer_group
+
 import pickle
 import pandas as pd
 import os
@@ -58,7 +60,6 @@ class BaseModelConfig(ABC):
                     self.fixed_params[name] = p.default 
                 elif p.dim ==1:
                     self.fixed_params[name]= p.default[0]
-
         return self.fixed_params
 
     def get_x_names(self):
@@ -113,7 +114,6 @@ class BaseModelConfig(ABC):
         return x
 
     def get_bounds(self):
-
         bounds_list = []
         for name in self.estimated_params:
             for i in range(self.param_defs[name].dim):
@@ -326,6 +326,181 @@ class BaseModelConfig(ABC):
             'AIC_ii': self.AIC_ii,
             'BIC_ii': self.BIC_ii,
         }
+
+    def fit_group(self, data, single_subject=False, n_runs=10,mask=None):
+        """
+        Fit model parameters.
+
+        If single_subject=True, data should already contain one participant.
+        Otherwise, data needs a subject_ID column.
+        """
+        self.n_subjects = len(data['subject_ID'].unique())
+        self.set_group_dims()
+
+        best_p, res, res_all = optimizer_group(self, data, n_runs,mask=mask)
+
+        self.best_params_group = best_p
+        self.result = res
+        self.neg_LL = res.fun
+        self.detailed_fit = res_all
+
+        print("Best Neg_LL =", self.neg_LL)
+
+        self.neg_LLs ={}
+        
+        best_params = {}
+        cursor = 0
+        subject_IDs = data.subject_ID.unique()
+        group_built_params_list = self.build_params_group(res.x)
+        for subject in tqdm(subject_IDs):
+            best_params[subject] = best_p['group']
+            best_params[subject].update(best_p['ind'][cursor])
+            self.neg_LLs[subject] = self.get_negLL(
+                                        built_params=group_built_params_list[cursor],
+                                        data=data[data['subject_ID']==subject_IDs[cursor]],
+                                        mask=mask,
+                                    ) 
+            cursor+=1
+        
+        self.best_params = best_params
+
+        return self.best_params
+
+        best_params = {}
+        results = {}
+        neg_LLs = {}
+        detailed_fits = {}
+        optimizer_table = {}
+
+
+        for subject in tqdm(data.subject_ID.unique()):
+            data_subject = data[data["subject_ID"] == subject]
+            best_p, res, res_all = optimizer(self, data_subject, n_runs)
+            best_params[subject] = best_p
+            results[subject] = res
+            neg_LLs[subject] = res.fun
+            detailed_fits[subject] = res_all
+            optimizer_table[subject] = [res_i.fun for res_i in res_all]
+
+        self.best_params = best_params
+        self.results = results
+        self.neg_LLs = neg_LLs
+        self.neg_LL = np.sum(list(neg_LLs.values()))
+        self.detailed_fits = res_all
+        self.optimizer_table = optimizer_table
+
+        print("Best Neg_LL =", self.neg_LL)
+        return self
+        
+
+    
+    def get_initial_guess_group(self,initial_guess='random'):#Just for the group params
+        x0 = []
+        for param in self.estimated_params_group:
+            dim = self.param_defs[param].dim
+            bounds = self.param_defs[param].bounds
+            if(initial_guess == 'random'):
+                for i in range(dim):
+                    x0_param = np.random.uniform(bounds[0],bounds[1])
+                    x0.append(x0_param)
+            if(initial_guess == 'default'):
+                for i in range(dim):
+                    x0_param = self.param_defs[param].init_value
+                    x0.append(x0_param)
+            if(initial_guess == 'median'):
+                bounds_param = bounds[param]
+                for i in range(dim):
+                    x0_param = np.median(np.random.uniform(bounds[0],bounds[1]))
+                    x0.append(x0_param)
+        return x0 
+    
+    def set_group_dims(self):
+        self.ind_params_dim = len(self.get_initial_guess())
+        self.group_params_dim = len(self.get_initial_guess_group())
+
+
+    def get_initial_guess_joint(self,initial_guess='random'):
+        initial_guess_ind = np.stack([self.get_initial_guess(initial_guess=initial_guess) for i in range(self.n_subjects)])
+        initial_guess_group=self.get_initial_guess_group(initial_guess=initial_guess)
+        x0=np.concatenate([initial_guess_group,initial_guess_ind.ravel()])
+        return x0
+    
+    
+    def group_params_from_x(self,x):
+        param_dict = {}
+        cursor=0
+        for name in self.estimated_params_group:
+            p=self.param_defs[name]
+            dim = p.dim
+            if dim == 1:
+                raw_x = x[cursor]
+                param_dict[name] = p.transform(raw_x)
+            if(dim>1):
+                raw_x = np.asarray(x[cursor:cursor + dim], dtype=float)
+                param_dict[name] = p.transform(raw_x)
+            cursor += dim
+        return param_dict
+    
+    def params_fit(self,x):
+        group_x = x[:self.group_params_dim]
+        all_ind_x= x[self.group_params_dim:]
+        ind_x = all_ind_x.reshape(self.n_subjects,-1)
+
+        params = {'group': self.group_params_from_x(group_x),
+        'ind': [self.params_from_x(ind_x[subj]) for subj in range(self.n_subjects)]}
+        return params
+    
+    def build_params_group(self,x):
+        built_params_list = []
+        group_x = x[:self.group_params_dim]
+        all_ind_x= x[self.group_params_dim:]
+        ind_x = all_ind_x.reshape(self.n_subjects,-1)
+        for subj in range(self.n_subjects):
             
+            built_params = deepcopy(self.fixed_params)
+            params_from_x=self.params_from_x(ind_x[subj])
+            built_params.update(params_from_x)
+            
+            group_params_from_x=self.group_params_from_x(group_x)
+            built_params.update(group_params_from_x)
+            
+            built_params_list.append(built_params)
+        
+        return built_params_list
+    
+    def get_bounds_group(self):
+        bounds_list = []
+        for name in self.estimated_params_group:
+            for i in range(self.param_defs[name].dim):
+                bounds_list.append((self.param_defs[name].bounds))        
+        for i in range(self.n_subjects):
+            bounds_list= bounds_list + self.get_bounds()
+        return bounds_list
+    
+    def make_model_data_group(self, data,params=None):
+        model_data = []
+        group_built_params_list = self.build_params_group(self.result.x)
+
+        subject_IDs=data['subject_ID'].unique()
+        cursor=0
+        for subject_ID in subject_IDs:
+            subject_data = data[data['subject_ID']==subject_IDs[cursor]].copy() 
+            built_params=group_built_params_list[cursor]
+            simulation=self.run_model(data=subject_data,built_params=built_params)
+
+            subject_data['model_prob_resp']=simulation.results[:,0]
+            subject_data['model_prob_correct']=simulation.correct_prob
+            subject_data['alpha_1']=simulation.alpha_trajectory[:,0]
+            subject_data['alpha_2']=simulation.alpha_trajectory[:,1]
+
+            resp = self.get_resp(subject_data)
+            subject_data['model_prob_human_resp'] = simulation.results[np.arange(len(resp)), resp]
+
+            subject_data['LL'] = subject_data['model_prob_resp'].sum()
+
+            model_data.append(subject_data)
+            cursor+=1
+        self.model_data = pd.concat(model_data)
+        return self.model_data
 
 

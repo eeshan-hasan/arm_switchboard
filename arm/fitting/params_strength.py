@@ -79,7 +79,7 @@ Params_Strength = {
         name="initialization_association",
         dim=1,
         default=(1,),
-        bounds=(-2, 5),
+        bounds=(0, 1),
         transform=identity, #The model transforms it
         inv_transform=identity,
         init_value = 1
@@ -101,6 +101,15 @@ Params_Strength = {
         transform=identity,
         inv_transform=identity,
         init_value = 0
+    ),
+    "familiarization" : Param(
+        name='familiarization',
+        dim = 1,
+        default = (0,),
+        bounds = (0,1),
+        transform = identity,
+        inv_transform = identity,
+        init_value = 0.1
     )
 }
 

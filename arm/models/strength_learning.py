@@ -35,7 +35,7 @@ class StrengthModel(Model):
         self.delta = params.get("delta",np.ones(self.X.shape[1]))
         self.gamma_w = params.get("gamma_w", 1)#Learning Rate
 
-        self.initialization_association = 10 ** params.get("initialization_association", 0)
+        self.initialization_association = params.get("initialization_association", 0)
         if(quick):
             self.n_points = params.get("n_points", 10)
         else:
@@ -61,13 +61,14 @@ class StrengthModel(Model):
         self.decision_rule = params.get("decision_rule", "luce")#or softmax
         self.beta = params.get("beta", 1.0)#default is 1
 
+        self.familiarization=params.get('familiarization',0)#If its not set, then immediate familiarization
+
         if self.attention_update_dims == "single":
             self.initial_alpha = params.get("initial_alpha_s", np.mean(params.get('initial_alpha',0)))            
             self.initial_alpha = np.zeros(shape=self.delta.shape) + np.mean(self.initial_alpha)
             self.alpha = self.initial_alpha.copy()
         
         if self.attention_update_type == "sum_to_constant":
- 
             self.initial_alpha_s=params.get("initial_alpha_s",np.mean(self.alpha))
             self.initial_alpha = np.array([self.initial_alpha_s,-self.initial_alpha_s])            
             self.alpha = self.initial_alpha.copy()
@@ -92,7 +93,7 @@ class StrengthModel(Model):
             self.grid_size = self.hidden_units.shape[0]
             self.w = np.zeros((self.grid_size, self.n_categories))
             self.w[: , :] = (
-                self.initialization_association / max(1, self.grid_size)
+                self.initialization_association 
             )
         else:
             self.w = np.asarray(params["w"], dtype=float)
@@ -105,7 +106,9 @@ class StrengthModel(Model):
         self.all_alpha = np.zeros((self.X.shape[0], self.alpha.shape[0]))
 
     def run_learning_trials(self) -> dict[str, Any]:
+        self.trial_no=0
         for idx in range(len(self.X)):
+            self.trial_no+=1
             probe = self.X[idx]
 
             activations_mat = self.calc_activations(probe)
@@ -113,9 +116,7 @@ class StrengthModel(Model):
 
             E = self.calc_evidence(activations)
             D = self.calc_evidence_decision(E)
-
             f_trial = self.feedback_mat[idx]
-
             prev_alpha = deepcopy(self.alpha)
             self.alpha, dloss_trial, dreg_trial = self.update_attention(
                 activations=activations,
@@ -130,7 +131,6 @@ class StrengthModel(Model):
             )
             #print(activations)
             #print(self.w)
-
             self.decisions.append(D)
             if self.save_trajectories:
                 self.all_w.append(self.w.copy())
@@ -197,22 +197,24 @@ class StrengthModel(Model):
         D :np.ndarray
     ):
         self.w = self.w*(1-self.decay)
+        self.gamma_wf=self.gamma_w*self.calc_familiarization()
         
         if self.w_update_type == "hebbian":
-            self.w += (self.gamma_w)*f*activations
+            self.w += (self.gamma_wf)*f*activations
         
         elif self.w_update_type == "prediction_error":
-            self.w += self.gamma_w*(f-self.w)*activations
+            self.w += self.gamma_wf*(f-self.w)*activations
             self.w = np.maximum(self.w,0)
 
         elif self.w_update_type == "prediction_error_2":
-            self.w += (f-D)*activations*self.gamma_w
+            self.w += (f-D)*activations*self.gamma_wf
             self.w = np.maximum(self.w,0)
+        
+        elif self.w_update_type == "prediction_error_3":
+            self.w += ((2*f-1)-D)*activations*self.gamma_wf
 
         else:
-
             raise ValueError(f"Unknown w_update_type: {self.w_update_type}")
-        
         
 
     def calc_attention_loss_gradient(
@@ -289,6 +291,13 @@ class StrengthModel(Model):
         x: np.ndarray,
         f: np.ndarray,
         D: np.ndarray    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+        if(self.calc_familiarization()<0.9):#Dont update if the familiarization phase is not over.
+            new_alpha = self.alpha
+            dloss = 0*self.alpha
+            dreg = 0*self.alpha
+            return new_alpha, dloss, dreg
+
 
         if self.attention_update_type == "none":
             dloss = np.zeros(shape=self.alpha.shape)
@@ -367,6 +376,10 @@ class StrengthModel(Model):
             print("Updated alpha:", new_alpha)
 
         return new_alpha, dloss, dreg
+    
+    def calc_familiarization(self):
+        scaled_familiarization = self.familiarization*self.n_trials
+        return self.sigmoid(self.trial_no-scaled_familiarization+3) #The 3 is so that it only starts at a particular point in time.
 
 __all__ = [
     "StrengthModel",

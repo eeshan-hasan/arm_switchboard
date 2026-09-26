@@ -49,6 +49,8 @@ class StrengthModelConfig(BaseModelConfig):
 
         self.init_params['decision_rule'] = model_init.get('decision_rule', 'luce')
 
+        self.init_params['familiarization']=model_init.get('familiarization',0)
+
         return self
         
     
@@ -69,7 +71,7 @@ class StrengthModelConfig(BaseModelConfig):
                 self.estimated_params.append(name)
         if(self.init_params.get('decision_rule') == 'softmax'):
             self.estimated_params.append('beta')
-
+        
         if self.init_params.get("initial_alpha") == "fit_to_data":
             if self.init_params["attention_update_type"] == "sum_to_constant":
                 self.estimated_params.append("initial_alpha_s")
@@ -107,5 +109,7 @@ class StrengthModelConfig(BaseModelConfig):
 
         if self.init_params.get("initialization_association") == "fit_to_data":
             self.estimated_params.append("initialization_association")
+        if self.init_params.get("familiarization") == "fit_to_data":
+            self.estimated_params.append("familiarization")
 
         return self.estimated_params
